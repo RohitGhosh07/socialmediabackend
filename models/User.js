@@ -1,5 +1,4 @@
-const bcrypt = require('bcryptjs');
-
+// User Model
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
     username: {
@@ -32,6 +31,11 @@ module.exports = (sequelize, DataTypes) => {
       }
     }
   });
+
+  // User has many comments
+  User.associate = (models) => {
+    User.hasMany(models.Comment, { foreignKey: 'userId', as: 'comments' });
+  };
 
   return User;
 };

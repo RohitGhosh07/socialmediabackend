@@ -10,6 +10,8 @@ const userRoutes = require('./routes/user');
 const postRoutes = require('./routes/post');
 const authRoutes = require('./routes/auth');  // Import authentication routes
 const chatRoutes = require('./routes/chat');  // Import chat routes
+const likeRoutes = require('./routes/likeRoutes');  // Import chat routes
+const commentRoutes = require('./routes/commentRoutes');  // Import chat routes
 
 const app = express();
 
@@ -27,6 +29,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/likes', likeRoutes);
+app.use('/api/comments', commentRoutes);
 
 // Serve the home page with the image
 app.get('/', (req, res) => {

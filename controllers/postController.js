@@ -1,6 +1,7 @@
 const { Post, User, Follows } = require('../models');
 const upload = require('../middleware/upload'); // Import Multer
 const { Sequelize } = require('sequelize'); // Import Sequelize
+const Like = require('../models/Like');
 
 // Create a new post with media upload
 exports.createPost = [
@@ -68,17 +69,29 @@ exports.getPostsByUser = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Fetch the posts for the user and calculate the post count
+    // Fetch the post count for the user
     const postCount = await Post.count({ where: { userId } });
 
-    // Fetch posts in descending order of creation date
+    // Fetch the posts with the like count
     const posts = await Post.findAll({
       where: { userId },
-      order: [['createdAt', 'DESC']], // Order by createdAt in descending order
-      // include: [User] // Uncomment if you want to include user details within posts
+      order: [['createdAt', 'DESC']], // Order posts by creation date
+      attributes: {
+        include: [
+          // Include the count of likes for each post
+          [
+            Sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM "Likes" AS "like"
+              WHERE "like"."postId" = "Post"."id"
+            )`),
+            'likeCount'
+          ]
+        ]
+      },
     });
 
-    // Return the user details and posts
+    // Construct the response
     res.status(200).json({
       user: {
         id: user.id,
@@ -86,27 +99,27 @@ exports.getPostsByUser = async (req, res) => {
         email: user.email,
         bio: user.bio,
         profilePic: user.profilePic,
-        postCount: postCount // Add post count here
-        // Include other user fields as needed
+        postCount: postCount, // Post count included
       },
       posts: posts.map(post => ({
-        ...post.toJSON(),  // Convert post to JSON
-        profilePic: user.profilePic,  // Include user's profilePic
-        username: user.username  // Include user's username
-      }))
+        ...post.toJSON(),  // Convert each post instance to JSON
+        profilePic: user.profilePic,  // Include user's profilePic in each post
+        username: user.username,  // Include user's username in each post
+        likeCount: post.get('likeCount'),  // Get the like count for each post
+      })),
     });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 };
 
 
 
 
-// Get all posts in a randomized order (jumbled) with posts from different users
+
 exports.getJumbledPosts = async (req, res) => {
   try {
-    // Fetch posts in a randomized order, including associated User data
+    // Fetch posts in a randomized order, including associated User data and like count
     const posts = await Post.findAll({
       order: Sequelize.literal('RANDOM()'), // Use RANDOM() for PostgreSQL
       include: [{
@@ -115,9 +128,22 @@ exports.getJumbledPosts = async (req, res) => {
         attributes: ['username', 'profilePic'], // Include only username and profilePic
         required: true
       }],
+      attributes: {
+        include: [
+          // Include the count of likes for each post
+          [
+            Sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM "Likes" AS "like"
+              WHERE "like"."postId" = "Post"."id"
+            )`),
+            'likeCount'
+          ]
+        ]
+      },
     });
 
-    // Map through the posts and include the user's profilePic and username
+    // Map through the posts and include the user's profilePic, username, and likeCount
     const postsWithUserData = posts.map(post => ({
       id: post.id,
       title: post.title,
@@ -128,18 +154,17 @@ exports.getJumbledPosts = async (req, res) => {
       thumbNail: post.thumbNail,
       username: post.User.username,
       profilePic: post.User.profilePic,
-      mediaType: post.mediaType
-
+      mediaType: post.mediaType,
+      likeCount: post.get('likeCount')  // Get the like count for each post
     }));
 
-    // Return the posts with user data as a JSON response
+    // Return the posts with user data and like count as a JSON response
     res.status(200).json(postsWithUserData);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 };
 
-// Get posts from users that the current user is following, ordered from latest to oldest
 exports.getPostsFromFollowing = async (req, res) => {
   const { userId } = req.params;
 
@@ -147,10 +172,10 @@ exports.getPostsFromFollowing = async (req, res) => {
     // Fetch the list of user IDs that the current user is following
     const following = await Follows.findAll({
       where: { followerId: userId },
-      attributes: ['followingId']
+      attributes: ['followingId'],
     });
 
-    // Extract just the following IDs from the result
+    // Extract the following IDs from the result
     const followingIds = following.map(follow => follow.followingId);
 
     if (followingIds.length === 0) {
@@ -160,15 +185,30 @@ exports.getPostsFromFollowing = async (req, res) => {
     // Fetch posts from the users that the current user is following
     const posts = await Post.findAll({
       where: {
-        userId: followingIds, // Only fetch posts from the users that are being followed
+        userId: followingIds, // Fetch posts from the followed users
       },
-      order: [['createdAt', 'DESC']], // Order by 'createdAt' field in descending order
-      include: [{
-        model: User,
-        as: 'User', // Use the correct alias defined in your association
-        attributes: ['username', 'profilePic'], // Include only username and profilePic
-        required: true
-      }],
+      order: [['createdAt', 'DESC']], // Order posts by createdAt in descending order
+      include: [
+        {
+          model: User,
+          as: 'User', // Alias defined in your model association
+          attributes: ['username', 'profilePic'], // Include only username and profilePic
+          required: true,
+        },
+      ],
+      attributes: {
+        include: [
+          // Include the count of likes for each post using Sequelize.literal
+          [
+            Sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM "Likes" AS "like"
+              WHERE "like"."postId" = "Post"."id"
+            )`),
+            'likeCount'
+          ]
+        ]
+      },
     });
 
     // Map through the posts and include the user's profilePic and username
@@ -178,9 +218,12 @@ exports.getPostsFromFollowing = async (req, res) => {
       mediaUrl: post.mediaUrl,
       createdAt: post.createdAt,
       userId: post.userId,
-      // Include user details
       username: post.User.username,
-      profilePic: post.User.profilePic
+      profilePic: post.User.profilePic,
+      title: post.title,
+      thumbNail: post.thumbNail,
+      mediaType: post.mediaType,
+      likeCount: post.get('likeCount'), // Get the like count for each post
     }));
 
     // Return the posts with user data as a JSON response
