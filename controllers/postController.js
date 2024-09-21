@@ -38,8 +38,8 @@ exports.createPostVideo = [
 
     try {
       // Server IP and port configuration
-      // const serverIP = 'http://192.168.29.166:5000'; // Replace with your actual IP and port
-      const serverIP = 'http://192.168.50.226:5000'; // Replace with your actual IP and port
+      const serverIP = 'http://192.168.29.166:5000'; // Replace with your actual IP and port
+      // const serverIP = 'http://192.168.50.226:5000'; // Replace with your actual IP and port
 
 
       // Get the file paths for both video and thumbnail
