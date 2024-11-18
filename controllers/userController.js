@@ -6,39 +6,79 @@ const { Op } = require('sequelize'); // Import Op from sequelize
 
 // Register a new user
 exports.register = async (req, res) => {
-    const { username, email, password, bio } = req.body;
-    // console.log(req.body);
-  
-    try {
-      const userExists = await User.findOne({ where: { email } });
-      if (userExists) {
-        return res.status(400).json({ message: 'Email is already registered' });
-      }
-  
-      const user = await User.create({ username, email, password, bio });
-      res.status(201).json({ user, message: 'User registered successfully' });
-    } catch (err) {
-      res.status(400).json({ error: err.message });
-    }
-};
+  const { username, email, password, bio } = req.body;
 
+  // Log the incoming request body for debugging purposes
+  console.log("Received registration request with data: ", req.body);
+
+  try {
+    // Check if the user already exists
+    console.log("Checking if user exists with email: ", email);
+    const userExists = await User.findOne({ where: { email } });
+    
+    if (userExists) {
+      console.log("User already exists with email: ", email);
+      return res.status(400).json({ message: 'Email is already registered' });
+    }
+
+    // Create the user with the plain text password (not recommended for production)
+    console.log("Creating a new user with username: ", username);
+    const user = await User.create({
+      username,
+      email,
+      password,  // Store the plain text password
+      bio
+    });
+
+    // Log success
+    console.log("User successfully created: ", user);
+
+    // Respond with the created user data
+    res.status(201).json({ user, message: 'User registered successfully' });
+    
+  } catch (err) {
+    // Log the error with the full stack trace for more detail
+    console.error("Error during user registration: ", err.stack);
+    
+    // Respond with detailed error message
+    res.status(400).json({ error: err.message, details: err });
+  }
+};
 // User login
 exports.login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // Find the user by email
     const user = await User.findOne({ where: { email } });
-    if (!user) return res.status(400).json({ message: 'User not found' });
 
+    // If the user doesn't exist
+    if (!user) {
+      return res.status(400).json({ message: 'User not found' });
+    }
+
+    // Compare the entered plain text password with the hashed password stored in the database
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+    
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
 
+    // Generate a token (you can adjust the expiry time as needed)
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+    // Respond with the token and user data
     res.json({ token, message: 'Logged in successfully', user });
+
   } catch (err) {
+    // Log the error and send a 500 status with the error message
+    console.error("Error during login: ", err.stack);
     res.status(500).json({ error: err.message });
   }
 };
+
+
+
 
 exports.getProfile = async (req, res) => {
   const { userId, profileId } = req.body; // Get both userId and profileId from the request body
